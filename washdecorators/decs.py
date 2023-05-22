@@ -36,7 +36,7 @@ def retry(max_tries=3, delay_seconds=1):
 def time_function(log=True, nano_seconds=False):
 	"""
 	Times the execution of a function.
-	:param bool log: If the execution time should be written using the logging module (True) or the print method (False).
+	:param bool log: If the execution time should be written using the logging.info function (True) or the print method (False).
 	:param bool nano_seconds: If the timer should be in nano_seconds (True) or seconds (False).
 	:returns: The return value from the given function.
 	"""
@@ -82,7 +82,7 @@ def memorize(func):
 
 def log_execution(func):
 	"""
-	Logs the execution of functions using the logging module.
+	Logs the execution of functions using the logging.info function.
 	:param func:
 	:returns:
 	"""
@@ -126,3 +126,18 @@ def discord_on_failure(webhook_url):
 				raise e
 		return wrapper
 	return decorator
+
+
+def log_signature(func):
+	"""
+	Logs the signature of a function using Python's logging.debug.
+	:returns: The value from the given function.
+	"""
+	def wrapper(*args, **kwargs):
+		arg_repr = [repr(a) for a in args]
+		kwarg_repr = [f"{key}={value!r}" for key, value in kwargs.items()]
+		logging.debug(f"Entering {func.__name__}({','.join(arg_repr + kwarg_repr)}).")
+		value = func(*args, **kwargs)
+		logging.debug(f"Leaving {func.__name__}({','.join(arg_repr + kwarg_repr)}) with return value `{value!r}`.")
+		return value
+	return wrapper
