@@ -33,42 +33,44 @@ def retry(max_tries=3, delay_seconds=1):
 	return retry_decorator
 
 
-def time_function(func, log=True, nano_seconds=False):
+def time_function(log=True, nano_seconds=False):
 	"""
 	Times the execution of a function.
-	:param func: The function to be timed.
 	:param bool log: If the execution time should be written using the logging module (True) or the print method (False).
 	:param bool nano_seconds: If the timer should be in nano_seconds (True) or seconds (False).
 	:returns: The return value from the given function.
 	"""
-	def wrapper(*args, **kwargs):
-		from time import perf_counter, perf_counter_ns
-		timer = perf_counter_ns if nano_seconds else perf_counter()
+	def time_decorator(func):
+		@wraps(func)
+		def wrapper(*args, **kwargs):
+			from time import perf_counter, perf_counter_ns
+			timer = perf_counter_ns if nano_seconds else perf_counter
 
-		start = timer()
-		result = func(*args, **kwargs)
-		end = timer()
+			start = timer()
+			result = func(*args, **kwargs)
+			end = timer()
 
-		message = f"Execution time for: {func.__name__}: {end - start}{'ns' if nano_seconds else 's'}."
-		if log:
-			logging.info(message)
-		else:
-			print(message)
+			message = f"Execution time for: {func.__name__}: {end - start}{'ns' if nano_seconds else 's'}."
+			if log:
+				logging.info(message)
+			else:
+				print(message)
 
-		return result
-	return wrapper
+			return result
+		return wrapper
+	return time_decorator
 
 
 def memorize(func):
 	"""
 	Memorizes the output of a function given its arguments. Works well with recursive functions.
-	:param func: The function who's output should be memorized.
+	:param func: The function whose output should be memorized.
 	:return: The output of the function.
 	"""
 	cache = {}
 
 	def wrapper(*args, **kwargs):
-		key = (args, kwargs)
+		key = args
 		if key in cache:
 			return cache[key]
 		result = func(*args, **kwargs)
