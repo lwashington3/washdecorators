@@ -5,6 +5,12 @@ from functools import wraps
 __ALL__ = ["retry", "time_function", "memorize", "log_execution", "discord_on_failure"]
 
 
+def _get_signature(*args, **kwargs) -> str:
+	arg_repr = [repr(a) for a in args]
+	kwarg_repr = [f"{key}={value!r}" for key, value in kwargs.items()]
+	return ','.join(arg_repr + kwarg_repr)
+
+
 def retry(max_tries=3, delay_seconds=1):
 	"""
 	Retries a function if a failure occurs.
@@ -95,24 +101,48 @@ def log_execution(func):
 	return wrapper
 
 
-def discord_on_failure(webhook_url):
+def discord_on_completion(webhook_url):
 	"""
 	Sends a message to a Discord channel when a function fails via webhooks
 	:param str webhook_url: The webhook url from Discord
 	:returns: None
 	"""
 	def decorator(func):
+		try:
+			from requests import post
+		except ModuleNotFoundError as e:
+			raise ModuleNotFoundError("The 'requests' library could not be found. Please use `pip install requests in the command line and try again.`")
+
 		def wrapper(*args, **kwargs):
 			try:
-				return func(*args, **kwargs)
-			except Exception as e:
-				from requests import post
-				from traceback import format_exception
-
+				value = func(*args, **kwargs)
+				plural = False
+				if value is None:
+					results = "None"
+				elif isinstance(value, tuple):
+					results = ','.join([f"{i!r}" for i in value])
+					plural = True
+				else:
+					results = f"{value!r}"
 				data = {
 					"content": None,
 					"embeds": [{
-						"author": "Python Traceback Error",
+						"author": {"author": "Python Completion Notification"},
+						"title": f"`{func.__name__}` Successfully Executed:",
+						"description": f"Python function `{func.__name__}` has completed running and the following value{'s' if plural else ''} {'were' if plural else 'was'} returned: `{'(' if plural else ''}{results}{')' if plural else ''}`.",
+						"color": 5814783
+					}],
+					"username": "Python Completion Notification",
+					"attachments": []
+				}
+				post(webhook_url, json=data)
+				return value
+			except Exception as e:
+				from traceback import format_exception
+				data = {
+					"content": None,
+					"embeds": [{
+						"author": {"name": "Python Traceback Error"},
 						"title": f"{type(e).__name__}: {e.__cause__}",
 						"description": f"```{' '.join(format_exception(e))}```",
 						"color": 5814783
@@ -120,9 +150,7 @@ def discord_on_failure(webhook_url):
 					"username": "Python Traceback Error",
 					"attachments": []
 				}
-
 				post(webhook_url, json=data)
-
 				raise e
 		return wrapper
 	return decorator
@@ -134,10 +162,9 @@ def log_signature(func):
 	:returns: The value from the given function.
 	"""
 	def wrapper(*args, **kwargs):
-		arg_repr = [repr(a) for a in args]
-		kwarg_repr = [f"{key}={value!r}" for key, value in kwargs.items()]
-		logging.debug(f"Entering {func.__name__}({','.join(arg_repr + kwarg_repr)}).")
+		signature = _get_signature(*args, **kwargs)
+		logging.debug(f"Entering {func.__name__}({signature})")
 		value = func(*args, **kwargs)
-		logging.debug(f"Leaving {func.__name__}({','.join(arg_repr + kwarg_repr)}) with return value `{value!r}`.")
+		logging.debug(f"Leaving {func.__name__}({signature}) with return value `{value!r}`.")
 		return value
 	return wrapper

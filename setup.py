@@ -10,7 +10,7 @@ git_url = f"https://github.com/lwashington3/{project_name}"
 
 setup(
 	name=project_name,
-	version="1.0.2",
+	version="1.1.0",
 	author="Len Washington III",
 	author_email="l.washingtoniii.27@gmail.com",
 	description="Common function decorators module",
