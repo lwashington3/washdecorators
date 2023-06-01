@@ -2,7 +2,7 @@ import logging
 from functools import wraps
 
 
-__ALL__ = ["retry", "time_function", "memorize", "log_execution", "discord_on_failure"]
+__ALL__ = ["retry", "time_function", "memorize", "log_execution", "discord_on_completion"]
 
 
 def _get_signature(*args, **kwargs) -> str:
