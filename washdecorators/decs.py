@@ -2,7 +2,7 @@ import logging
 from functools import wraps
 
 
-__ALL__ = ["retry", "time_function", "memorize", "log_execution", "discord_on_completion"]
+__ALL__ = ["retry", "time_function", "memorize", "log_execution", "discord_on_completion", "ntfy", "ntfy_time"]
 
 
 def _get_signature(*args, **kwargs) -> str:
@@ -110,7 +110,7 @@ def discord_on_completion(webhook_url):
 	def decorator(func):
 		try:
 			from requests import post
-		except ModuleNotFoundError as e:
+		except ModuleNotFoundError:
 			raise ModuleNotFoundError("The 'requests' library could not be found. Please use `pip install requests in the command line and try again.`")
 
 		def wrapper(*args, **kwargs):
@@ -168,3 +168,84 @@ def log_signature(func):
 		logging.debug(f"Leaving {func.__name__}({signature}) with return value `{value!r}`.")
 		return value
 	return wrapper
+
+
+def ntfy(ntfy_link:str, topic:str, on_completion="results", on_error="error"):
+	"""
+	Notify a user about the running of a function.
+	:param str ntfy_link: The link to the NTFY server.
+	:param str topic: The topic to notify.
+	:param str | None on_completion: The message that should be sent when the function has successfully completed.
+	Put "results" to send the exact results to the NTFY server.
+	:param str | None on_error: The message that should be sent when the function has hit an error and did not finish.
+	Put "error" to send the exact error to the NTFY server.
+	:return:
+	"""
+	def decorator(func):
+		@wraps(func)
+		def wrapper(*args, **kwargs):
+			data = None
+			try:
+				result = func(*args, **kwargs)
+				if on_completion is None:
+					return result
+				elif on_completion == "results":
+					data = str(result)
+				else:
+					data = on_completion
+				return result
+			except Exception as e:
+				if on_error is None:
+					raise e
+				elif on_error == "error":
+					from traceback import format_exception
+					data = ' '.join(format_exception(e))
+				else:
+					data = on_error
+				raise e
+			finally:
+				if data is None:
+					return
+
+				from requests import post
+				post(f"{ntfy_link}/{topic}", data=data)
+		return wrapper
+	return decorator
+
+
+def ntfy_time(ntfy_link:str, topic:str):
+	"""
+	Notify a user about the running of a function.
+	:param str ntfy_link: The link to the NTFY server.
+	:param str topic: The topic to notify.
+	:return:
+	"""
+	def decorator(func):
+		@wraps(func)
+		def wrapper(*args, **kwargs):
+			from time import perf_counter_ns as timer
+			from datetime import timedelta
+			from requests import post
+
+			start = timer()
+
+			def end_timer() -> timedelta:
+				time_diff = timer() - start
+				time = timedelta(microseconds=time_diff / 1_000)
+				return time
+
+			try:
+				result = func(*args, **kwargs)
+				time = end_timer()
+
+				data = f"Function: {func.__name__} successfully run in: {str(time)} seconds."
+				return result
+			except Exception as e:
+				time = end_timer()
+
+				data = f"Function: {func.__name__} had an error thrown after: {str(time)} seconds."
+				raise e
+			finally:
+				post(f"{ntfy_link}/{topic}", data=data)
+		return wrapper
+	return decorator
